@@ -24,9 +24,9 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-        HttpServletRequest request,
-        HttpServletResponse response,
-        FilterChain chain
+        @org.springframework.lang.NonNull HttpServletRequest request,
+        @org.springframework.lang.NonNull HttpServletResponse response,
+        @org.springframework.lang.NonNull FilterChain chain
     ) throws ServletException, IOException {
 
         String header = request.getHeader("Authorization");
@@ -61,12 +61,15 @@ public class JwtFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(auth);
         chain.doFilter(request, response);
     }
-  @Override
-protected boolean shouldNotFilter(HttpServletRequest request) {
-    String path = request.getServletPath();
-    return path.equals("/login") || path.equals("/auth/refresh");
-}
 
-
-
+    @Override
+    protected boolean shouldNotFilter(@org.springframework.lang.NonNull HttpServletRequest request) {
+        // ── AJUSTE CRUCIAL: Dejar pasar todas las peticiones OPTIONS sin evaluar JWT ──
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        
+        String path = request.getServletPath();
+        return path.equals("/login") || path.equals("/auth/refresh");
+    }
 }

@@ -87,7 +87,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:4200","https://*.vercel.app"));
+        
+        // Agregamos tu URL exacta junto con el patrón general para asegurar el tiro
+        config.setAllowedOrigins(List.of(
+            "http://localhost:4200",
+            "https://sigcon-erp-yjkn.vercel.app" // <- Tu URL exacta de Vercel sin barra al final
+        ));
+        config.setAllowedOriginPatterns(List.of("https://*.vercel.app"));
+        
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
