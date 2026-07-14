@@ -5,5 +5,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export const environment = {
     production: false,
-    apiUrl: 'https://sigcon-erp-production.up.railway.app'
+    apiUrl: 'http://143.47.109.116:8080'
 };
