@@ -1,0 +1,31 @@
+server:
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: ms-inventario
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none          # NO usar validate: los tipos Java no calzan 1:1 con Postgres
+    properties:
+      hibernate:
+        # Neon entrega la conexion con el search_path vacio. Sin esto
+        # Hibernate emite 'FROM usuario' sin calificar y falla con
+        # 'relation "usuario" does not exist'.
+        default_schema: public
+        format_sql: false
+    show-sql: true
+    # (compras y almacen), cada entidad declara el suyo con @Table(schema="...")
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true

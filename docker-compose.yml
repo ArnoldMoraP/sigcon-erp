@@ -1,0 +1,154 @@
+# =====================================================================
+#  Caso Siderurgica Peru - Dia 3
+#  6 servicios + MySQL para ms-rrhh
+#
+#  Requisitos previos:
+#    1) Copiar .env.example como .env y rellenar credenciales
+#    2) Compilar los JAR:   .\build-jars.ps1
+#    3) Levantar:           docker compose up --build
+#
+#  IMPORTANTE: dentro de Docker NO existe "localhost". Cada contenedor se
+#  llama por el nombre del servicio (eureka-server, mysql-rrhh, etc.).
+# =====================================================================
+
+services:
+
+  # ------------------------------------------------ Service Discovery
+  eureka-server:
+    build: ./eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - siderurgica-net
+    healthcheck:
+      # los demas servicios esperan a que Eureka responda antes de arrancar
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ------------------------------------------------ MySQL para ms-rrhh
+  mysql-rrhh:
+    image: mysql:8.0
+    container_name: mysql-rrhh
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      # el init.sql solo se ejecuta la PRIMERA vez que se crea el volumen
+      - ./ms-rrhh/db/init-mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - mysql_rrhh_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - siderurgica-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ------------------------------------------------ ms-auth (PostgreSQL / Neon)
+  ms-auth:
+    build: ./ms-auth
+    container_name: ms-auth
+    ports:
+      - "8081:8081"
+    environment:
+      DB_URL: jdbc:postgresql://${DB_HOST}/${DB_NAME_AUTH}?sslmode=require
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - siderurgica-net
+
+  # ------------------------------------------------ ms-ventas (PostgreSQL / Neon)
+  ms-ventas:
+    build: ./ms-ventas
+    container_name: ms-ventas
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL: jdbc:postgresql://${DB_HOST}/${DB_NAME_VENTAS}?sslmode=require
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - siderurgica-net
+
+  # ------------------------------------------------ ms-inventario (PostgreSQL / Neon)
+  ms-inventario:
+    build: ./ms-inventario
+    container_name: ms-inventario
+    ports:
+      - "8083:8083"
+    environment:
+      # OJO: SIN currentSchema. Este MS usa dos schemas (compras y almacen),
+      # declarados en cada entidad con @Table(schema="...")
+      DB_URL: jdbc:postgresql://${DB_HOST}/${DB_NAME_INVENTARIO}?sslmode=require
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - siderurgica-net
+
+  # ------------------------------------------------ ms-rrhh (MySQL)
+  ms-rrhh:
+    build: ./ms-rrhh
+    container_name: ms-rrhh
+    ports:
+      - "8084:8084"
+    environment:
+      # 'mysql-rrhh' es el nombre del contenedor, no localhost
+      DB_URL: jdbc:mysql://mysql-rrhh:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Lima&characterEncoding=UTF-8
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      mysql-rrhh:
+        condition: service_healthy
+    networks:
+      - siderurgica-net
+
+  # ------------------------------------------------ api-gateway (puerta unica)
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      # el JWT_SECRET DEBE ser el mismo que el de ms-auth
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      ms-auth:
+        condition: service_started
+    networks:
+      - siderurgica-net
+
+networks:
+  siderurgica-net:
+    driver: bridge
+
+volumes:
+  mysql_rrhh_data:

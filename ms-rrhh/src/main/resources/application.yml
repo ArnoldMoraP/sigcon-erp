@@ -1,0 +1,26 @@
+server:
+  port: ${PORT:8084}
+
+spring:
+  application:
+    name: ms-rrhh
+  datasource:
+    url: ${DB_URL}                      # jdbc:mysql://localhost:3306/rrhh
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: none                    # el schema lo crea db/init-mysql.sql
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true

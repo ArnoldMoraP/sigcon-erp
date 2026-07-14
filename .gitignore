@@ -1,0 +1,31 @@
+# Scripts con credenciales locales
+run-*.ps1
+
+# Maven
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Variables de entorno
+.env
+.env.local
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+# Credenciales del docker-compose
+.env
+
+# Secret real de Kubernetes
+k8s/01-secret.yaml
+k8s-oracle/01-secret.yaml
+
+migrar-bases.ps1
+migrar-datos.ps1

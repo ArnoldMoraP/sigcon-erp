@@ -1,0 +1,132 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      # ---------------- CORS ----------------
+      # Sin esto el navegador bloquea TODAS las peticiones del frontend Angular
+      # (el backend responde bien, pero el navegador descarta la respuesta).
+      # No afecta a Postman ni a PowerShell: CORS es una regla del navegador.
+      # Los microservicios (ms-auth) ya traen su propio CORS del monolito.
+      # Sin esta linea, el header Access-Control-Allow-Origin llega DUPLICADO
+      # y el navegador lo rechaza. Esto hace que gane el del gateway.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:4200"     # ng serve
+              - "http://127.0.0.1:4200"
+              - "https://*.vercel.app"      # el frontend desplegado
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: ms-auth
+          uri: lb://ms-auth
+          predicates:
+            - Path=/auth/**,/usuarios/**
+
+        - id: ms-ventas-cotizaciones
+          uri: lb://ms-ventas
+          predicates:
+            - Path=/cotizaciones/**
+
+        - id: ms-ventas-pedidos
+          uri: lb://ms-ventas
+          predicates:
+            - Path=/pedidos/**
+
+        - id: ms-ventas-ventas
+          uri: lb://ms-ventas
+          predicates:
+            - Path=/ventas/**
+
+        - id: ms-ventas-despacho
+          uri: lb://ms-ventas
+          predicates:
+            - Path=/despacho/**
+
+        - id: ms-inventario
+          uri: lb://ms-inventario
+          predicates:
+            - Path=/inventario/**,/proveedores/**,/ordenes-compra/**,/compras/**,/facturas-proveedor/**,/pagos-proveedor/**,/presupuestos/**
+
+        # ---- ALIAS PARA EL FRONTEND ----
+        # El frontend viene del monolito y usa nombres en SINGULAR
+        # (/proveedor, /presupuesto). Los controllers de ms-inventario usan
+        # PLURAL. El gateway reescribe la ruta en vez de tocar el frontend.
+        - id: ms-inventario-alias-proveedor
+          uri: lb://ms-inventario
+          predicates:
+            - Path=/proveedor/**
+          filters:
+            - RewritePath=/proveedor(?<resto>/?.*), /proveedores$\{resto}
+
+        - id: ms-inventario-alias-presupuesto
+          uri: lb://ms-inventario
+          predicates:
+            - Path=/presupuesto/**
+          filters:
+            - RewritePath=/presupuesto(?<resto>/?.*), /presupuestos$\{resto}
+
+        - id: ms-inventario-alias-orden
+          uri: lb://ms-inventario
+          predicates:
+            - Path=/orden-compra/**
+          filters:
+            - RewritePath=/orden-compra(?<resto>/?.*), /ordenes-compra$\{resto}
+
+        - id: ms-rrhh
+          uri: lb://ms-rrhh
+          predicates:
+            - Path=/rrhh/**
+
+        # El frontend (heredado del monolito) llama a /empleados, /planillas, etc.
+        # SIN el prefijo /rrhh. Los controllers de ms-rrhh si lo tienen, asi que
+        # el gateway reescribe la ruta:  /empleados  ->  /rrhh/empleados
+        # incidencias-personal (frontend) -> /rrhh/incidencias (controller)
+        - id: ms-rrhh-alias-incidencias
+          uri: lb://ms-rrhh
+          predicates:
+            - Path=/incidencias-personal/**
+          filters:
+            - RewritePath=/incidencias-personal(?<resto>/?.*), /rrhh/incidencias$\{resto}
+
+        # asistencia (singular, frontend) -> /rrhh/asistencias (plural, controller)
+        - id: ms-rrhh-alias-asistencia
+          uri: lb://ms-rrhh
+          predicates:
+            - Path=/asistencia/**
+          filters:
+            - RewritePath=/asistencia(?<resto>/?.*), /rrhh/asistencias$\{resto}
+
+        # el resto coincide de nombre: solo hay que anteponer /rrhh
+        - id: ms-rrhh-alias
+          uri: lb://ms-rrhh
+          predicates:
+            - Path=/empleados/**,/asistencias/**,/planillas/**,/incidencias/**
+          filters:
+            - RewritePath=/(?<resto>.*), /rrhh/$\{resto}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true

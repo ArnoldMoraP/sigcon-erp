@@ -1,0 +1,114 @@
+# Generado a partir de ms-rrhh/db/init-mysql.sql
+# El StatefulSet lo monta en /docker-entrypoint-initdb.d/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-script
+  namespace: siderurgica
+data:
+  init-mysql.sql: |
+    -- =====================================================================
+    -- ms-rrhh  |  MySQL 8  |  Base de datos: rrhh
+    -- Equivalente MySQL del schema "rrhh" que estaba en PostgreSQL (Neon).
+    -- Se ejecuta automaticamente al crear el contenedor mysql-rrhh.
+    -- =====================================================================
+    CREATE DATABASE IF NOT EXISTS rrhh
+      DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    USE rrhh;
+    
+    -- ---------------------------------------------------------------- empleado
+    CREATE TABLE IF NOT EXISTS empleado (
+      id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+      codigo        VARCHAR(20)  NOT NULL UNIQUE,
+      nombres       VARCHAR(100) NOT NULL,
+      apellidos     VARCHAR(100) NOT NULL,
+      dni           VARCHAR(15)  NOT NULL UNIQUE,
+      cargo         VARCHAR(100),
+      area          VARCHAR(100),
+      salario       DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      fecha_ingreso DATE,
+      email         VARCHAR(150),
+      telefono      VARCHAR(20),
+      estado        VARCHAR(20)  NOT NULL DEFAULT 'ACTIVO',
+      usuario_id    BIGINT,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+    
+    -- -------------------------------------------------------------- asistencia
+    CREATE TABLE IF NOT EXISTS asistencia (
+      id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+      empleado_id      BIGINT NOT NULL,
+      fecha            DATE   NOT NULL,
+      hora_entrada     TIME,
+      hora_salida      TIME,
+      horas_trabajadas DECIMAL(5,2),
+      estado           VARCHAR(20) NOT NULL DEFAULT 'PUNTUAL',   -- PUNTUAL / TARDANZA / FALTA
+      observacion      VARCHAR(255),
+      CONSTRAINT fk_asistencia_empleado FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+      CONSTRAINT uq_asistencia_dia UNIQUE (empleado_id, fecha)
+    ) ENGINE=InnoDB;
+    
+    -- ---------------------------------------------------------------- planilla
+    CREATE TABLE IF NOT EXISTS planilla (
+      id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+      codigo            VARCHAR(20) NOT NULL UNIQUE,
+      periodo           VARCHAR(7)  NOT NULL,                    -- 'YYYY-MM'
+      fecha_generacion  DATE,
+      total_ingresos    DECIMAL(14,2) DEFAULT 0.00,
+      total_descuentos  DECIMAL(14,2) DEFAULT 0.00,
+      total_neto        DECIMAL(14,2) DEFAULT 0.00,
+      estado            VARCHAR(20) NOT NULL DEFAULT 'GENERADA', -- GENERADA / APROBADA / PAGADA
+      usuario_id        BIGINT
+    ) ENGINE=InnoDB;
+    
+    -- -------------------------------------------------------- planilla_detalle
+    CREATE TABLE IF NOT EXISTS planilla_detalle (
+      id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+      planilla_id    BIGINT NOT NULL,
+      empleado_id    BIGINT NOT NULL,
+      sueldo_base    DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      bonificaciones DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      descuentos     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      neto           DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      CONSTRAINT fk_detalle_planilla FOREIGN KEY (planilla_id) REFERENCES planilla(id),
+      CONSTRAINT fk_detalle_empleado FOREIGN KEY (empleado_id) REFERENCES empleado(id)
+    ) ENGINE=InnoDB;
+    
+    -- ----------------------------------------------------- incidencia_personal
+    CREATE TABLE IF NOT EXISTS incidencia_personal (
+      id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+      empleado_id BIGINT NOT NULL,
+      tipo        VARCHAR(50)  NOT NULL,                         -- TARDANZA / FALTA / PERMISO / ACCIDENTE / AMONESTACION
+      descripcion VARCHAR(300),
+      fecha       DATE NOT NULL,
+      gravedad    VARCHAR(20) DEFAULT 'LEVE',                    -- LEVE / MODERADA / GRAVE
+      estado      VARCHAR(20) DEFAULT 'ABIERTA',                 -- ABIERTA / CERRADA
+      CONSTRAINT fk_incidencia_empleado FOREIGN KEY (empleado_id) REFERENCES empleado(id)
+    ) ENGINE=InnoDB;
+    
+    -- ----------------------------------------------------------- pago_planilla
+    CREATE TABLE IF NOT EXISTS pago_planilla (
+      id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+      planilla_id BIGINT NOT NULL,
+      fecha_pago  DATE,
+      monto       DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+      metodo_pago VARCHAR(30) DEFAULT 'TRANSFERENCIA',
+      estado      VARCHAR(20) DEFAULT 'PAGADO',
+      CONSTRAINT fk_pago_planilla FOREIGN KEY (planilla_id) REFERENCES planilla(id)
+    ) ENGINE=InnoDB;
+    
+    -- ===================== Datos de prueba (para la demo) =====================
+    INSERT INTO empleado (codigo, nombres, apellidos, dni, cargo, area, salario, fecha_ingreso, email, telefono, estado) VALUES
+      ('EMP-0001', 'Carlos',  'Quispe Mamani',   '45781236', 'Operario de Horno',   'Produccion', 2200.00, '2023-03-15', 'cquispe@siderurgica.pe',  '987654321', 'ACTIVO'),
+      ('EMP-0002', 'Maria',   'Rojas Vargas',    '41236598', 'Jefa de Almacen',     'Almacen',    3800.00, '2022-08-01', 'mrojas@siderurgica.pe',   '987123456', 'ACTIVO'),
+      ('EMP-0003', 'Jorge',   'Ramirez Diaz',    '43698521', 'Vendedor Senior',     'Ventas',     3200.00, '2021-11-20', 'jramirez@siderurgica.pe', '981234567', 'ACTIVO'),
+      ('EMP-0004', 'Lucia',   'Fernandez Soto',  '47852136', 'Analista de Compras', 'Compras',    2900.00, '2024-01-08', 'lfernandez@siderurgica.pe','986543210','ACTIVO'),
+      ('EMP-0005', 'Pedro',   'Huaman Castro',   '42589631', 'Supervisor de Planta','Produccion', 4100.00, '2020-05-12', 'phuaman@siderurgica.pe',  '985214763', 'ACTIVO');
+    
+    INSERT INTO asistencia (empleado_id, fecha, hora_entrada, hora_salida, horas_trabajadas, estado) VALUES
+      (1, '2026-07-08', '08:00:00', '17:00:00', 8.00, 'PUNTUAL'),
+      (2, '2026-07-08', '08:20:00', '17:05:00', 7.75, 'TARDANZA'),
+      (3, '2026-07-08', '07:55:00', '17:00:00', 8.00, 'PUNTUAL');
+    
+    INSERT INTO incidencia_personal (empleado_id, tipo, descripcion, fecha, gravedad, estado) VALUES
+      (2, 'TARDANZA', 'Llego 20 minutos tarde sin justificacion', '2026-07-08', 'LEVE', 'ABIERTA');

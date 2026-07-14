@@ -1,0 +1,21 @@
+# Solo para desarrollo local del dia 2/3.
+# En Kubernetes (dia 4) esto se reemplaza por el StatefulSet + PVC de MySQL.
+services:
+  mysql-rrhh:
+    image: mysql:8.0
+    container_name: mysql-rrhh
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: rrhh
+      MYSQL_USER: rrhh_user
+      MYSQL_PASSWORD: rrhh_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      # Se ejecuta solo la PRIMERA vez que se crea el volumen
+      - ./db/init-mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - mysql_rrhh_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  mysql_rrhh_data:

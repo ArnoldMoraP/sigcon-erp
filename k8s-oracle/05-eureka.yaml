@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka-server
+  namespace: siderurgica
+spec:
+  type: ClusterIP          # solo interno; para ver el dashboard: kubectl port-forward
+  selector:
+    app: eureka-server
+  ports:
+    - port: 8761
+      targetPort: 8761
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka-server
+  namespace: siderurgica
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eureka-server
+  template:
+    metadata:
+      labels:
+        app: eureka-server
+    spec:
+      containers:
+        - name: eureka-server
+          image: iad.ocir.io/idxarx3sn3vb/siderurgica/eureka-server:1.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8761
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 90
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "384Mi"
+              cpu: "200m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"

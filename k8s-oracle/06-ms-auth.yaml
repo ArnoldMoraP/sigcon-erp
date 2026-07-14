@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-auth
+  namespace: siderurgica
+spec:
+  type: ClusterIP          # no se expone fuera: todo entra por el gateway
+  selector:
+    app: ms-auth
+  ports:
+    - port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-auth
+  namespace: siderurgica
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ms-auth
+  template:
+    metadata:
+      labels:
+        app: ms-auth
+    spec:
+      # initContainer: no arranca hasta que Eureka responda.
+      # Es el equivalente K8s del "depends_on: condition: service_healthy" del compose.
+      initContainers:
+        - name: esperar-eureka
+          image: docker.io/library/busybox:1.36
+          command: ['sh','-c','until nc -z eureka-server 8761; do echo "esperando a eureka..."; sleep 5; done; echo "eureka listo"']
+
+      containers:
+        - name: ms-auth
+          image: iad.ocir.io/idxarx3sn3vb/siderurgica/ms-auth:1.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+          env:
+            - name: EUREKA_URL
+              valueFrom:
+                configMapKeyRef: { name: siderurgica-config, key: EUREKA_URL }
+            # --- Neon (PostgreSQL) ---
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef: { name: siderurgica-secrets, key: DB_HOST }
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef: { name: siderurgica-secrets, key: DB_NAME_AUTH }
+            - name: DB_URL
+              value: "jdbc:postgresql://$(DB_HOST)/$(DB_NAME)?sslmode=require"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: siderurgica-secrets, key: DB_USERNAME }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: siderurgica-secrets, key: DB_PASSWORD }
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef: { name: siderurgica-secrets, key: JWT_SECRET }
+          # tcpSocket en vez de /actuator/health: estos microservicios no tienen
+          # la dependencia spring-boot-starter-actuator, asi que un httpGet a
+          # /actuator/health devolveria 404 y el pod se reiniciaria en bucle.
+          readinessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 90
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "384Mi"
+              cpu: "200m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"

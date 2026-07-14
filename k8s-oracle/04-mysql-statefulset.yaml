@@ -1,0 +1,110 @@
+# =====================================================================
+#  MySQL para ms-rrhh
+#
+#  Se usa StatefulSet (no Deployment) porque una base de datos tiene ESTADO:
+#   - identidad de red estable (mysql-rrhh-0)
+#   - su PersistentVolumeClaim propio, que sobrevive al reinicio del pod
+#
+#  El volumeClaimTemplate pide el almacenamiento al cluster. En Docker Desktop
+#  lo resuelve el StorageClass 'hostpath'; en Oracle OKE seria un Block Volume.
+#  El YAML es el mismo: por eso no se fija storageClassName (usa el default).
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-rrhh
+  namespace: siderurgica
+spec:
+  # headless service: da DNS estable a cada pod del StatefulSet
+  clusterIP: None
+  selector:
+    app: mysql-rrhh
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-rrhh
+  namespace: siderurgica
+spec:
+  serviceName: mysql-rrhh
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-rrhh
+  template:
+    metadata:
+      labels:
+        app: mysql-rrhh
+    spec:
+      containers:
+        - name: mysql
+          image: docker.io/library/mysql:8.0
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: siderurgica-secrets
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: siderurgica-secrets
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: siderurgica-secrets
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: siderurgica-secrets
+                  key: MYSQL_PASSWORD
+          volumeMounts:
+            - name: datos-mysql
+              mountPath: /var/lib/mysql
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: init-script
+          configMap:
+            name: mysql-init-script
+
+  # ---- PersistentVolumeClaim: el almacenamiento que sobrevive al pod ----
+  volumeClaimTemplates:
+    - metadata:
+        name: datos-mysql
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

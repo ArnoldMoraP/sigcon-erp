@@ -1,0 +1,10 @@
+# Configuracion NO sensible: URLs internas del cluster.
+# En Kubernetes los servicios se llaman por su nombre de Service (DNS interno),
+# igual que en docker-compose se llamaban por el nombre del contenedor.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: siderurgica-config
+  namespace: siderurgica
+data:
+  EUREKA_URL: "http://eureka-server:8761/eureka/"
