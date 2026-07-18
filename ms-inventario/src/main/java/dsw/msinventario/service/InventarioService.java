@@ -112,4 +112,43 @@ public class InventarioService {
 
         return new DescontarStockResponse(inv.getProducto(), stockNuevo, bajoStock);
     }
+
+    /**
+     * ===== FASE 4: TRANSACCION COMPENSATORIA (patron Saga) =====
+     *
+     *  PATCH /inventario/reponer-stock
+     *  Body:  { "producto": "Varilla corrugada 1/2\"", "cantidad": 5 }
+     *
+     * Es el "deshacer" de descontarStock(). La llama ms-ventas (InventarioClient)
+     * cuando, tras descontar el stock al aprobar un pedido, falla al guardar el
+     * pedido. Sin esto, el stock quedaba descontado por un pedido inexistente.
+     *
+     * Usa el mismo bloqueo pesimista que el descuento para no pisarse con
+     * descuentos concurrentes.
+     */
+    @Transactional
+    public DescontarStockResponse reponerStockPorProducto(DescontarStockRequest req) {
+
+        if (req.getProducto() == null || req.getProducto().isBlank())
+            throw new ProductoNoEncontradoException("Producto no encontrado en inventario");
+
+        if (req.getCantidad() == null || req.getCantidad() <= 0)
+            throw new StockInsuficienteException("La cantidad a reponer debe ser mayor a 0");
+
+        Inventario inv = inventarioRepository
+                .findByProductoNombreForUpdate(req.getProducto())
+                .orElseThrow(() -> new ProductoNoEncontradoException("Producto no encontrado en inventario"));
+
+        int stockActual = (inv.getStock() == null ? 0 : inv.getStock());
+        int stockNuevo = stockActual + req.getCantidad();
+        inv.setStock(stockNuevo);
+        inventarioRepository.save(inv);
+
+        boolean bajoStock = stockNuevo <= (inv.getStockMinimo() == null ? 0 : inv.getStockMinimo());
+
+        log.info("Stock repuesto (compensacion Saga): producto='{}' cantidad={} stock {} -> {}",
+                inv.getProducto(), req.getCantidad(), stockActual, stockNuevo);
+
+        return new DescontarStockResponse(inv.getProducto(), stockNuevo, bajoStock);
+    }
 }

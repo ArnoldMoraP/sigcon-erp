@@ -69,4 +69,18 @@ public class InventarioController {
     public ResponseEntity<DescontarStockResponse> descontarStock(@RequestBody DescontarStockRequest req) {
         return ResponseEntity.ok(inventarioService.descontarStock(req));
     }
+
+    /**
+     * ===== FASE 4: COMPENSACION (Saga) DEL CONTRATO CON ms-ventas =====
+     * Repone (suma) stock por nombre de producto. La llama InventarioClient
+     * (ms-ventas) para deshacer un descuento cuando el pedido no llega a
+     * guardarse. Simetrico a /descontar-stock.
+     *
+     * Body:  { "producto": "...", "cantidad": 5 }
+     * 200 -> { "producto": "...", "stockNuevo": 200, "bajoStock": false }
+     */
+    @PatchMapping("/reponer-stock")
+    public ResponseEntity<DescontarStockResponse> reponerStock(@RequestBody DescontarStockRequest req) {
+        return ResponseEntity.ok(inventarioService.reponerStockPorProducto(req));
+    }
 }
