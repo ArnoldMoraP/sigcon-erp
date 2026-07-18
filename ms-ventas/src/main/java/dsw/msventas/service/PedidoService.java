@@ -91,18 +91,37 @@ public class PedidoService {
         String estadoUp = nuevoEstado.toUpperCase();
         Map<String, Object> resultado = new HashMap<>();
 
+        boolean stockDescontado = false;
         if ("APROBADO".equals(estadoUp)) {
-            // Llamada REST a ms-inventario en vez de acceso directo a la BD
+            // Llamada REST a ms-inventario en vez de acceso directo a la BD.
+            // OJO: esto se confirma en una transaccion APARTE dentro de ms-inventario.
             Map<String, Object> respuestaInventario =
                     inventarioClient.descontarStock(pedido.getProducto(), pedido.getCantidad());
+            stockDescontado = true;
             resultado.put("inventario", respuestaInventario);
             log.info("Stock descontado vía ms-inventario para producto '{}'", pedido.getProducto());
         }
 
         pedido.setEstado(estadoUp);
-        Pedido guardado = pedidoRepository.save(pedido);
-        resultado.put("pedido", guardado);
-        return resultado;
+
+        // FASE 4 (compensacion Saga):
+        // Usamos saveAndFlush (no save) para forzar el INSERT/UPDATE AHORA y que
+        // cualquier error de BD salte DENTRO de este try, no despues al hacer commit.
+        // Si el pedido no se puede guardar despues de haber descontado stock,
+        // deshacemos el descuento para no dejar inventario "fantasma" descontado
+        // por un pedido que finalmente no existe.
+        try {
+            Pedido guardado = pedidoRepository.saveAndFlush(pedido);
+            resultado.put("pedido", guardado);
+            return resultado;
+        } catch (RuntimeException e) {
+            if (stockDescontado) {
+                log.error("Fallo al guardar el pedido {} tras descontar stock. Compensando (reponiendo stock)...",
+                        pedido.getCodigo());
+                inventarioClient.reponerStock(pedido.getProducto(), pedido.getCantidad());
+            }
+            throw e;
+        }
     }
 
     private void calcularMontos(Pedido pedido) {
