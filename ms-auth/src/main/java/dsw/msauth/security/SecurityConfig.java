@@ -38,6 +38,9 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
     .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+    // FASE 0/2: el healthcheck del docker-compose pega a /actuator/health sin
+    // token; hay que permitirlo o el contenedor nunca queda 'healthy'.
+    .requestMatchers("/actuator/**").permitAll()
     .requestMatchers("/auth/login", "/auth/refresh").permitAll()
     // Endpoint interno entre microservicios (no expuesto en el gateway).
     // Reemplaza el JOIN que ms-ventas hacia a seguridad.usuario.

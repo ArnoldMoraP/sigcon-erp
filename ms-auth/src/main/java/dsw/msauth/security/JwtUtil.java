@@ -6,8 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.Base64;
 
 @Component
 public class JwtUtil {
@@ -21,8 +21,11 @@ public class JwtUtil {
         @Value("${jwt.expiration}") long expiration,
         @Value("${jwt.refresh-expiration}") long refreshExpiration
     ) {
-        byte[] decoded = Base64.getEncoder().encode(secret.getBytes());
-        this.key = Keys.hmacShaKeyFor(decoded);
+        // FASE 3: antes se hacia Base64.getEncoder().encode(...) (CODIFICAR),
+        // lo cual era consistente consigo mismo pero no con la forma estandar.
+        // Ahora la clave se deriva de los bytes UTF-8 del secreto, IGUAL que en
+        // el api-gateway (JwtUtil), para que el gateway pueda validar estos tokens.
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = expiration;
         this.refreshExpiration = refreshExpiration;
     }
