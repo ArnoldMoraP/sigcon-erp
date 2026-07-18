@@ -1,0 +1,21 @@
+# Config centralizada de ms-inventario.
+# OJO: SIN currentSchema. Usa dos schemas (compras y almacen), declarados en
+# cada entidad con @Table(schema="...").
+server:
+  port: ${PORT:8083}
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: public
+        format_sql: false
+    show-sql: false

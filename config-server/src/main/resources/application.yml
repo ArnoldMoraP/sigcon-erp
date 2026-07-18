@@ -1,0 +1,25 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    # 'native' = leer la config de una carpeta local, no de un repo Git.
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          # En Docker se monta ./config-repo del host en /config-repo (ver docker-compose).
+          # Para correr el config-server local (sin Docker) exportar CONFIG_LOCATIONS.
+          search-locations: ${CONFIG_LOCATIONS:file:/config-repo}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
