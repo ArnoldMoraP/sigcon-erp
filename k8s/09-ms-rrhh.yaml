@@ -26,9 +26,12 @@ spec:
       labels:
         app: ms-rrhh
     spec:
-      # initContainer: no arranca hasta que Eureka responda.
+      # initContainer: no arranca hasta que Eureka, config-server y MySQL respondan.
       # Es el equivalente K8s del "depends_on: condition: service_healthy" del compose.
       initContainers:
+        - name: esperar-config-server
+          image: busybox:1.36
+          command: ['sh','-c','until nc -z config-server 8888; do echo "esperando a config-server..."; sleep 5; done; echo "config-server listo"']
         - name: esperar-eureka
           image: busybox:1.36
           command: ['sh','-c','until nc -z eureka-server 8761; do echo "esperando a eureka..."; sleep 5; done; echo "eureka listo"']
@@ -45,6 +48,9 @@ spec:
             - name: EUREKA_URL
               valueFrom:
                 configMapKeyRef: { name: siderurgica-config, key: EUREKA_URL }
+            - name: CONFIG_SERVER_URL
+              valueFrom:
+                configMapKeyRef: { name: siderurgica-config, key: CONFIG_SERVER_URL }
             # --- MySQL dentro del cluster ---
             - name: MYSQL_DATABASE
               valueFrom:
@@ -58,17 +64,16 @@ spec:
               valueFrom:
                 secretKeyRef: { name: siderurgica-secrets, key: MYSQL_PASSWORD }
 
-          # tcpSocket en vez de /actuator/health: estos microservicios no tienen
-          # la dependencia spring-boot-starter-actuator, asi que un httpGet a
-          # /actuator/health devolveria 404 y el pod se reiniciaria en bucle.
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health
               port: 8084
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health
               port: 8084
             initialDelaySeconds: 90
             periodSeconds: 20

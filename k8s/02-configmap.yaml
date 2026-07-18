@@ -8,3 +8,4 @@ metadata:
   namespace: siderurgica
 data:
   EUREKA_URL: "http://eureka-server:8761/eureka/"
+  CONFIG_SERVER_URL: "http://config-server:8888"
