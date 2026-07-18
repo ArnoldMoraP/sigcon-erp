@@ -12,3 +12,14 @@ eureka:
   server:
     enable-self-preservation: false
     wait-time-in-ms-when-sync-empty: 0
+
+# FASE 0: expone /actuator/health para que el healthcheck del docker-compose
+# pase (antes daba 404 y ningun otro servicio arrancaba).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

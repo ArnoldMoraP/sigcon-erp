@@ -26,6 +26,14 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
         </dependency>
+
+        <!-- FASE 0: expone /actuator/health para que el healthcheck del
+             docker-compose pase y los demas servicios (depends_on:
+             condition: service_healthy) puedan arrancar. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
